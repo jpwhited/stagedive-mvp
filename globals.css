@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom variables for Throwback mode */
+.theme-throwback {
+  --background: #0d0d0d;
+  --foreground: #f8f8f2;
+  --primary: #ff79c6;
+  --secondary: #8be9fd;
+  --accent: #50fa7b;
+}

@@ -1,0 +1,286 @@
+// Prisma schema for StageDive
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String?
+  emailVerified DateTime?
+  role          UserRole  @default(USER)
+  profile       Profile?
+  posts         Post[]    @relation("UserPosts")
+  tracks        Track[]   @relation("UserTracks")
+  playlists     Playlist[]
+  listings      Listing[]
+  messages      Message[] @relation("UserMessages")
+  conversations ConversationParticipant[]
+  xpEvents      XPEvent[]
+  levels        UserLevel[]
+  reportsFiled  Report[]  @relation("ReportsFiled")
+  reportsOn     Report[]  @relation("ReportsOn")
+  ordersAsBuyer Order[]   @relation("BuyerOrders")
+  ordersAsSeller Order[]  @relation("SellerOrders")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model Profile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  username      String   @unique
+  avatarUrl     String?  
+  bannerUrl     String?
+  bio           String?  @db.VarChar(500)
+  location      String?
+  spotlight     String?  // comma-separated list of spotlight ids
+  featuredTrackId String?
+  isPublic      Boolean  @default(true)
+  artist        Boolean  @default(false)
+  theme         String   @default("default")
+  xp            Int      @default(0)
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower    User     @relation("UserFollowers", fields: [followerId], references: [id])
+  following   User     @relation("UserFollowing", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+model Post {
+  id        String    @id @default(uuid())
+  authorId  String
+  type      PostType
+  content   String?
+  trackId   String?
+  playlistId String?
+  createdAt DateTime  @default(now())
+  author    User      @relation("UserPosts", fields: [authorId], references: [id])
+  track     Track?    @relation(fields: [trackId], references: [id])
+  playlist  Playlist? @relation(fields: [playlistId], references: [id])
+  likes     Like[]
+  comments  Comment[]
+}
+
+enum PostType {
+  STATUS
+  TRACK
+  PLAYLIST
+}
+
+model Track {
+  id         String   @id @default(uuid())
+  uploaderId String
+  title      String
+  genre      String?
+  mood       String?
+  bpm        Int?
+  explicit   Boolean   @default(false)
+  url        String
+  coverUrl   String?
+  plays      Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  uploader   User      @relation("UserTracks", fields: [uploaderId], references: [id])
+  posts      Post[]
+  playlists  PlaylistTrack[]
+}
+
+model Playlist {
+  id        String          @id @default(uuid())
+  ownerId   String
+  title     String
+  isPublic  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  owner     User            @relation(fields: [ownerId], references: [id])
+  tracks    PlaylistTrack[]
+  posts     Post[]
+}
+
+model PlaylistTrack {
+  id         String   @id @default(uuid())
+  playlistId String
+  trackId    String
+  position   Int      @default(0)
+  addedAt    DateTime @default(now())
+  playlist   Playlist @relation(fields: [playlistId], references: [id])
+  track      Track    @relation(fields: [trackId], references: [id])
+
+  @@unique([playlistId, trackId])
+}
+
+model Like {
+  id       String   @id @default(uuid())
+  userId   String
+  postId   String
+  createdAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id])
+  post     Post     @relation(fields: [postId], references: [id])
+
+  @@unique([userId, postId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  content   String   @db.VarChar(1000)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id])
+}
+
+model Listing {
+  id          String     @id @default(uuid())
+  sellerId    String
+  title       String
+  description String?    @db.VarChar(1000)
+  price       Float
+  category    ListingCategory
+  location    String?
+  isDigital   Boolean    @default(false)
+  status      ListingStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  seller      User       @relation(fields: [sellerId], references: [id])
+  images      ListingImage[]
+  orders      Order[]    @relation("ListingOrders")
+  reports     Report[]   @relation("ListingReports")
+}
+
+enum ListingCategory {
+  PHYSICAL
+  DIGITAL
+  SERVICE
+}
+
+enum ListingStatus {
+  ACTIVE
+  SOLD
+  DELETED
+}
+
+model ListingImage {
+  id        String   @id @default(uuid())
+  listingId String
+  url       String
+  listing   Listing  @relation(fields: [listingId], references: [id])
+}
+
+model Order {
+  id        String        @id @default(uuid())
+  buyerId   String
+  listingId String
+  status    OrderStatus   @default(PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  buyer     User          @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller    User          @relation("SellerOrders", fields: [], references: [id]) @ignore
+  listing   Listing       @relation("ListingOrders", fields: [listingId], references: [id])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  COMPLETE
+  CANCELLED
+}
+
+model Conversation {
+  id        String                     @id @default(uuid())
+  createdAt DateTime                   @default(now())
+  messages  Message[]
+  participants ConversationParticipant[]
+}
+
+model ConversationParticipant {
+  id             String      @id @default(uuid())
+  conversationId String
+  userId         String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  user           User        @relation(fields: [userId], references: [id])
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String      @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String?
+  fileUrl        String?
+  createdAt      DateTime    @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         User         @relation("UserMessages", fields: [senderId], references: [id])
+}
+
+model XPEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  eventType XPEventType
+  amount    Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+enum XPEventType {
+  POST
+  UPLOAD
+  PLAYLIST
+  BUY
+  SELL
+}
+
+model UserLevel {
+  id        String   @id @default(uuid())
+  userId    String
+  level     Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Report {
+  id          String      @id @default(uuid())
+  reporterId  String
+  targetUserId String?
+  targetType  ReportTarget
+  targetId    String
+  reason      String
+  resolved    Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  reporter    User        @relation("ReportsFiled", fields: [reporterId], references: [id])
+  targetUser  User?       @relation("ReportsOn", fields: [targetUserId], references: [id])
+  listing     Listing?    @relation("ListingReports", fields: [targetId], references: [id]) @ignore
+}
+
+enum ReportTarget {
+  USER
+  TRACK
+  LISTING
+  COMMENT
+  POST
+}
+
+model Admin {
+  id        String  @id @default(uuid())
+  userId    String  @unique
+  createdAt DateTime @default(now())
+  user      User    @relation(fields: [userId], references: [id])
+}
